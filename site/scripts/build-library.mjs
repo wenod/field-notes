@@ -1,8 +1,24 @@
 import fs from "node:fs";
 import path from "node:path";
+import {
+  findPublicSafetyViolation,
+  redactPublicContactDetails,
+} from "./public-safety.mjs";
 
 const privateSourcePath = path.resolve(process.cwd(), "../posts.jsonl");
 const sampleSourcePath = path.resolve(process.cwd(), "examples/posts.sample.jsonl");
+const publicIndexPath = path.resolve(process.cwd(), "public/data/bookmarks.public.json");
+const publicEdition = process.env.BOOKMARKS_PUBLIC === "1";
+const useCheckedInPublicIndex = !process.env.BOOKMARKS_SOURCE
+  && !process.env.BOOKMARKS_OUTPUT
+  && !fs.existsSync(privateSourcePath)
+  && fs.existsSync(publicIndexPath);
+
+if (useCheckedInPublicIndex) {
+  console.log("Using the checked-in audited public bookmark index.");
+  process.exit(0);
+}
+
 const sourcePath = process.env.BOOKMARKS_SOURCE
   ? path.resolve(process.cwd(), process.env.BOOKMARKS_SOURCE)
   : fs.existsSync(privateSourcePath) ? privateSourcePath : sampleSourcePath;
@@ -89,6 +105,14 @@ const technicalDomains = new Map([
   ["techcrunch.com", 2], ["theverge.com", 2], ["techmeme.com", 2], ["wired.com", 2],
 ]);
 
+const trustedHealthDomains = new Set([
+  "nature.com", "science.org", "pubmed.ncbi.nlm.nih.gov", "pmc.ncbi.nlm.nih.gov",
+  "nih.gov", "cdc.gov", "who.int", "nejm.org", "thelancet.com", "bmj.com",
+  "jamanetwork.com", "cell.com", "plos.org", "frontiersin.org", "elifesciences.org",
+  "med.stanford.edu",
+]);
+const healthEvidencePattern = /\b(?:randomi[sz]ed controlled trial|clinical trial|peer[- ]reviewed|systematic review|meta[- ]analysis|study published in|research published in|according to researchers|researchers at|scientists at|controlled trial|prospective study|retrospective study|cohort study|case series|preprint|doi\b)\b/i;
+
 const explicitContentPattern = /\b(pussy|porn(?:ography|ographic)?|onlyfans|nudes?|blowjob|handjob|sex tape|masturbat(?:e|ion)|orgasm|anal sex|xxx)\b/i;
 const partisanPoliticsPattern = /\b(elections?|politicians?|parliament|congress party|bjp|narendra modi|rahul gandhi|donald trump|democrats?|republicans?|aam aadmi party|lok sabha|rajya sabha|afd party|geopolitics?)\b/i;
 const conflictNewsPattern = /\b(war of aggression|military strike|missile strike|airstrikes?|bombing campaign|(?:country|nation|army|military|troops?|forces?|china|russia|israel|iran|pakistan|india) (?:invades?|invaded|invading)|troops? deployed|ceasefire)\b/i;
@@ -140,6 +164,7 @@ function collectUrls(post) {
     try {
       const parsed = new URL(url);
       if (parsed.hostname === "t.co") return;
+      if (publicEdition && parsed.protocol === "http:") parsed.protocol = "https:";
       const normalized = parsed.toString();
       found.set(normalized, display || parsed.hostname.replace(/^www\./, ""));
     } catch {}
@@ -217,10 +242,13 @@ function inferFormats(post, text, urls, domains) {
 }
 
 function buildRecord(post) {
-  const text = decodeEntities(post.full_text);
-  const quoteText = decodeEntities(post.quoted_tweet?.full_text);
-  const articleTitle = decodeEntities(post.article?.title);
-  const articlePreview = decodeEntities(post.article?.preview_text || post.article?.full_text);
+  if (publicEdition && post.lang !== "en") return null;
+
+  const cleanForEdition = (value) => publicEdition ? redactPublicContactDetails(value) : value;
+  const text = cleanForEdition(decodeEntities(post.full_text));
+  const quoteText = cleanForEdition(decodeEntities(post.quoted_tweet?.full_text));
+  const articleTitle = cleanForEdition(decodeEntities(post.article?.title));
+  const articlePreview = cleanForEdition(decodeEntities(post.article?.preview_text || post.article?.full_text));
   const urls = collectUrls(post);
   const domains = [...new Set(urls.map((item) => domainOf(item.url)).filter(Boolean))];
   const classificationText = [text, quoteText, articleTitle, articlePreview, ...domains].join(" \n ");
@@ -233,7 +261,7 @@ function buildRecord(post) {
   const strongest = shelfScores[0]?.strongest ?? 0;
   const combined = shelfScores[0]?.score ?? 0;
   const keep = strongest >= 3 || combined >= 5 || domainScore >= 4 || (domainScore >= 2 && strongest >= 2);
-  if (!keep || shouldExcludeOffTopic(scoringText, strongest, combined, domainScore)) return null;
+  if (!keep || findPublicSafetyViolation(classificationText) || shouldExcludeOffTopic(scoringText, strongest, combined, domainScore)) return null;
 
   let primaryShelf = shelfScores[0];
   if (!primaryShelf || primaryShelf.strongest === 0) {
@@ -248,6 +276,14 @@ function buildRecord(post) {
     if (selectedTopics.length >= 4) break;
   }
   if (!selectedTopics.length) selectedTopics.push("Developer Tools");
+
+  if (publicEdition && selectedTopics.includes("Biology & Medicine")) {
+    const hasTrustedHealthDomain = domains.some((domain) =>
+      trustedHealthDomains.has(domain) || domain.endsWith(".edu") || domain.endsWith(".ac.uk"),
+    );
+    const hasResearchContext = healthEvidencePattern.test(scoringText);
+    if (!hasTrustedHealthDomain && !hasResearchContext && !debunkingPattern.test(scoringText)) return null;
+  }
 
   const formats = inferFormats(post, classificationText, urls, domains);
   const createdAt = new Date(Number(post.created_at) * 1000);
@@ -309,6 +345,7 @@ const countBy = (key) => Object.fromEntries(
 
 const payload = {
   meta: {
+    publicEdition,
     sourceCount: rawLines.filter(Boolean).length,
     includedCount: records.length,
     excludedCount: rawLines.filter(Boolean).length - records.length,

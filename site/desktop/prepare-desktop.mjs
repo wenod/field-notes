@@ -1,9 +1,22 @@
-import { readFile, unlink, writeFile } from "node:fs/promises";
+import { access, readFile, unlink, writeFile } from "node:fs/promises";
 
 const distURL = new URL("../dist/", import.meta.url);
 const indexURL = new URL("index.html", distURL);
-const dataURL = new URL("data/bookmarks.json", distURL);
+const dataCandidates = [
+  new URL("data/bookmarks.json", distURL),
+  new URL("data/bookmarks.public.json", distURL),
+];
 const desktopDataURL = new URL("desktop-data.js", distURL);
+
+let dataURL;
+for (const candidate of dataCandidates) {
+  try {
+    await access(candidate);
+    dataURL = candidate;
+    break;
+  } catch {}
+}
+if (!dataURL) throw new Error("Could not locate a bookmark index in dist/data.");
 
 const [html, rawPayload] = await Promise.all([
   readFile(indexURL, "utf8"),

@@ -1,6 +1,6 @@
 # Field Notes
 
-A local-first, utilitarian single-page dashboard for searching the technical and scientific material in a Twillot bookmark export. It has no backend, database, authentication layer, or server-rendered pages.
+A local-first, utilitarian single-page dashboard for searching a curated technical and scientific bookmark collection. It has no backend, database, authentication layer, or server-rendered pages.
 
 ## Use it as a macOS app
 
@@ -24,7 +24,7 @@ npm run dev
 
 Then open `http://localhost:3000`. Keep the terminal window running and press `Ctrl+C` when finished.
 
-If `../posts.jsonl` is absent, the development server uses the synthetic dataset in `examples/posts.sample.jsonl` so the project remains runnable without anyone's personal bookmarks.
+If `../posts.jsonl` is absent, the app uses the audited public index in `public/data/bookmarks.public.json`. The synthetic fixture in `examples/posts.sample.jsonl` is retained for tests and classifier development.
 
 ## Create and run the portable static build
 
@@ -50,4 +50,12 @@ Ordinary words search the post, quoted context, article preview, author, tags, a
 
 Replace `../posts.jsonl` with a newer Twillot export and restart the site. The compact index is rebuilt automatically. The source export is read-only, never modified, and ignored by Git.
 
-The taxonomy and filtering rules live in `scripts/build-library.mjs`. The generated index lives in `public/data/bookmarks.json` and is also ignored by Git.
+The taxonomy and filtering rules live in `scripts/build-library.mjs`, and the reusable safety gate lives in `scripts/public-safety.mjs`. The personal generated index lives in `public/data/bookmarks.json` and is ignored by Git.
+
+To regenerate and verify the separately versioned public edition:
+
+```bash
+npm run library:public
+```
+
+See the root README for the public dataset's filtering, attribution, accuracy, and content caveats.

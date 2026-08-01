@@ -266,11 +266,15 @@ export function BookmarkLibrary() {
       return;
     }
 
-    fetch(`${import.meta.env.BASE_URL}data/bookmarks.json`)
-      .then((response) => {
-        if (!response.ok) throw new Error("The bookmark index could not be loaded.");
-        return response.json() as Promise<LibraryPayload>;
-      })
+    const loadIndex = async () => {
+      for (const filename of ["bookmarks.json", "bookmarks.public.json"]) {
+        const response = await fetch(`${import.meta.env.BASE_URL}data/${filename}`);
+        if (response.ok) return response.json() as Promise<LibraryPayload>;
+      }
+      throw new Error("The bookmark index could not be loaded.");
+    };
+
+    loadIndex()
       .then(setPayload)
       .catch((reason: Error) => setError(reason.message));
   }, []);
