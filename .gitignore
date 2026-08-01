@@ -1,0 +1,12 @@
+.DS_Store
+**/.DS_Store
+
+# Personal bookmark exports and export metadata
+/posts.jsonl
+/metadata.json
+/settings.jsonl
+/users.jsonl
+/from_where.txt
+
+# Generated personal search index
+/site/public/data/bookmarks.json
