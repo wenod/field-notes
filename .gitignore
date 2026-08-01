@@ -10,3 +10,6 @@
 
 # Generated personal search index
 /site/public/data/bookmarks.json
+
+# The deliberately generated and audited public edition is versioned separately.
+!/site/public/data/bookmarks.public.json

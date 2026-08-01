@@ -18,9 +18,16 @@ test("builds a genuine static single-page application", async () => {
 });
 
 test("copies the complete technical index into the static build", async () => {
-  const raw = await readFile(new URL("../dist/data/bookmarks.json", import.meta.url), "utf8");
+  let dataURL = new URL("../dist/data/bookmarks.json", import.meta.url);
+  let raw;
+  try {
+    raw = await readFile(dataURL, "utf8");
+  } catch {
+    dataURL = new URL("../dist/data/bookmarks.public.json", import.meta.url);
+    raw = await readFile(dataURL, "utf8");
+  }
   const payload = JSON.parse(raw);
-  const file = await stat(new URL("../dist/data/bookmarks.json", import.meta.url));
+  const file = await stat(dataURL);
 
   assert.equal(payload.meta.includedCount, payload.records.length);
   assert.equal(payload.meta.malformedCount, 0);
