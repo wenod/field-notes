@@ -2,6 +2,8 @@
 
 Field Notes turns a Twitter/X bookmark export into a fast, searchable technical research dashboard and standalone macOS app. Classification happens at build time, with an intentionally compact taxonomy centered on generative AI, software, systems, data, and science.
 
+![Field Notes dashboard showing a Graph RAG search and bookmark details](docs/field-notes-dashboard.png)
+
 The repository includes the application code and an audited public edition of the curated technical knowledgebase. Personal exports, local indexes, export metadata, application bundles, and installers remain ignored.
 
 ## Explore the public knowledgebase
